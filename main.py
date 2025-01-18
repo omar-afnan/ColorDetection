@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import math
 
-# Define HSV color ranges
+
 lower_red_1 = np.array([0, 100, 100])
 upper_red_1 = np.array([10, 255, 255])
 lower_red_2 = np.array([170, 100, 100])
