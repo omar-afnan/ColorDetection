@@ -2,13 +2,13 @@ import cv2
 import numpy as np
 import math
 
-# HSV color ranges for red and blue
-lower_red_1 = np.array([0, 100, 100])
+# HSV color ranges for red and blue (expanded ranges)
+lower_red_1 = np.array([0, 70, 50])     # First red range (beginning of hue spectrum)
 upper_red_1 = np.array([10, 255, 255])
-lower_red_2 = np.array([170, 100, 100])
+lower_red_2 = np.array([160, 70, 50])   # Second red range (end of hue spectrum)
 upper_red_2 = np.array([180, 255, 255])
-lower_blue = np.array([100, 150, 100])
-upper_blue = np.array([140, 255, 255])
+lower_blue = np.array([90, 80, 50])     # Expanded blue range
+upper_blue = np.array([150, 255, 255])
 
 # Reference point (e.g., center of the frame)
 reference_point = (640, 360)  # Assuming 1280x720 resolution

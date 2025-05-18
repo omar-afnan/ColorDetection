@@ -2,10 +2,10 @@ import cv2
 import numpy as np
 import time
 
-# HSV color ranges (fine-tuned to avoid skin detection)
-lower_red_1 = np.array([0, 150, 150])
+# HSV color ranges (improved for better red detection)
+lower_red_1 = np.array([0, 120, 70])    # First red range (beginning of hue spectrum)
 upper_red_1 = np.array([10, 255, 255])
-lower_red_2 = np.array([170, 150, 150])
+lower_red_2 = np.array([160, 120, 70])  # Second red range (end of hue spectrum)
 upper_red_2 = np.array([180, 255, 255])
 lower_blue = np.array([100, 150, 100])
 upper_blue = np.array([140, 255, 255])
@@ -25,6 +25,10 @@ def process_frame(frame):
     mask_red = cv2.bitwise_or(mask_red1, mask_red2)
     mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
 
+    # Debug visualization - show the masks
+    cv2.imshow("Red Mask", mask_red)
+    cv2.imshow("Blue Mask", mask_blue)
+    
     kernel = np.ones((5, 5), np.uint8)
     mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, kernel)
     mask_blue = cv2.morphologyEx(mask_blue, cv2.MORPH_OPEN, kernel)
@@ -36,7 +40,7 @@ def process_frame(frame):
             return
 
         for contour in contours:
-            if cv2.contourArea(contour) < 300:  # Adjust this if objects are small
+            if cv2.contourArea(contour) < 100:  # Reduced from 300 to detect smaller objects
                 continue
 
             M = cv2.moments(contour)
