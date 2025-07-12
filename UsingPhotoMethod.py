@@ -73,11 +73,12 @@ def process_frame(frame):
     cv2.waitKey(2000)  # Show for 2 seconds
     cv2.destroyAllWindows()
 
-try:
+try:    
     while True:
         print("\n📸 Capturing snapshot...")
         ret, frame = cap.read()
         if ret:
+            frame = cv2.flip(frame, 1)
             process_frame(frame)
         else:
             print("❌ Failed to capture frame.")
