@@ -1,66 +1,50 @@
-#include <Arduino.h>
-#define LED_LEFT 21
-#define LED_RIGHT 22
-#define LED_UP 23
-#define LED_DOWN 25
-#define LED_CENTER 26
+// Define motor pins
+#define IN1 13  // Left motor
+#define IN2 12
+#define IN3 14  // Right motor
+#define IN4 27
 
-// put function declarations here:
-int myFunction(int, int);
-
-void setup()
-{
-  // put your setup code here, to run once:
-  Serial.begin(9600); // Serial to communicate with Raspberry Pi
-  Serial.println("ESP32 Ready!");
+void setup() {
+  // Set all motor pins as output
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
 }
 
-void loop()
-{
-  // put your main code here, to run repeatedly:
+void loop() {
+  // Move Forward
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  delay(2000);
 
-  if (Serial.available())
-  {
-    String command = Serial.readStringUntil('\n'); // Read until newline
-    command.trim();                                // Remove extra whitespace
+  // Move Backward
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  delay(2000);
 
-    // Turn off all LEDs first (reset state)
-    digitalWrite(LED_LEFT, LOW);
-    digitalWrite(LED_RIGHT, LOW);
-    digitalWrite(LED_UP, LOW);
-    digitalWrite(LED_DOWN, LOW);
-    digitalWrite(LED_CENTER, LOW);
+  // Turn Left
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  delay(1500);
 
-    if (command == "LEFT")
-    {
-      Serial.println("⬅️ Move Left received.");
-      // Add your motor or LED control logic here
-    }
-    else if (command == "RIGHT")
-    {
-      Serial.println("➡️ Move Right received.");
-    }
-    else if (command == "UP")
-    {
-      Serial.println("⬆️ Move Up received.");
-    }
-    else if (command == "DOWN")
-    {
-      Serial.println("⬇️ Move Down received.");
-    }
-    else if (command == "CENTERED" || command == "STAY")
-    {
-      Serial.println("✅ Stay Centered.");
-    }
-    else
-    {
-      Serial.println("❓ Unknown command: " + command);
-    }
-  }
-}
+  // Turn Right
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  delay(1500);
 
-// put function definitions here:
-int myFunction(int x, int y)
-{
-  return x + y;
+  // Stop
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  delay(1000);
 }
