@@ -12,7 +12,7 @@ upper_blue = np.array([140, 255, 255])
 
 # === Constants for Distance Calculation ===
 KNOWN_WIDTH = 3.9  # cm
-FOCAL_LENGTH = <YOUR_FOCAL_LENGTH>  # replace this with your value, e.g. 625.33
+FOCAL_LENGTH = 625.33 # replace this with your value, e.g. 625.33
 
 # === Video Capture Setup ===
 cap = cv2.VideoCapture(0)
