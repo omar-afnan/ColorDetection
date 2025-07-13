@@ -26,7 +26,6 @@ reference_point = (640, 360)
 def detect_field_squares(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-
     _, thresh_white = cv2.threshold(blurred, 200, 255, cv2.THRESH_BINARY)
     _, thresh_black = cv2.threshold(blurred, 50, 255, cv2.THRESH_BINARY_INV)
 
@@ -94,7 +93,7 @@ while True:
     mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, kernel)
     mask_blue = cv2.morphologyEx(mask_blue, cv2.MORPH_OPEN, kernel)
 
-    # RED detection
+    # === RED detection ===
     red_center, red_box = get_largest_contour_center_and_box(mask_red)
     if red_center and red_box:
         cx, cy = red_center
@@ -103,20 +102,21 @@ while True:
 
         cv2.circle(frame, (cx, cy), 10, (0, 0, 255), -1)
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-        cv2.putText(frame, f"Red: ({cx},{cy})", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        cv2.putText(frame, f"Red: ({cx},{cy})", (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
         for wx, wy, ww, wh in white_tiles:
             if wx < cx < wx + ww and wy < cy < wy + wh:
                 cv2.putText(frame, "Drop RED!", (cx + 20, cy + 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                print(" Command: DROP_RED")
+                print("📤 Command: DROP_RED")
                 # esp_serial.write(b"DROP_RED\n")  # Uncomment to send
                 break
 
         if frame_count % 10 == 0:
             print(f"Red Center: ({cx}, {cy}) | Offset: dx={dx}, dy={dy}")
 
-    # BLUE detection
+    # === BLUE detection ===
     blue_center, blue_box = get_largest_contour_center_and_box(mask_blue)
     if blue_center and blue_box:
         cx, cy = blue_center
@@ -125,20 +125,21 @@ while True:
 
         cv2.circle(frame, (cx, cy), 10, (255, 0, 0), -1)
         cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        cv2.putText(frame, f"Blue: ({cx},{cy})", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+        cv2.putText(frame, f"Blue: ({cx},{cy})", (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
         for bx, by, bw, bh in black_tiles:
             if bx < cx < bx + bw and by < cy < by + bh:
                 cv2.putText(frame, "Drop BLUE!", (cx + 20, cy + 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                print(" Command: DROP_BLUE")
+                print("📤 Command: DROP_BLUE")
                 # esp_serial.write(b"DROP_BLUE\n")  # Uncomment to send
                 break
 
         if frame_count % 10 == 0:
             print(f"Blue Center: ({cx}, {cy}) | Offset: dx={dx}, dy={dy}")
 
-    # Show output
+    # === Draw Reference Point ===
     cv2.circle(frame, reference_point, 8, (0, 255, 0), -1)
     cv2.putText(frame, "Center", (reference_point[0] - 50, reference_point[1] - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
@@ -150,4 +151,4 @@ while True:
 # ==== CLEANUP ====
 cap.release()
 cv2.destroyAllWindows()
-# esp_serial.close()  # Uncomment if using serial
+# esp_serial.close()
