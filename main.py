@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import RPi.GPIO as GPIO
 import time
-import threading
 
 # === GPIO Setup ===
 GPIO.setmode(GPIO.BCM)
@@ -27,23 +26,6 @@ SERVO_PIN = 12
 GPIO.setup(SERVO_PIN, GPIO.OUT)
 servo = GPIO.PWM(SERVO_PIN, 50)
 servo.start(0)
-
-# === Servo sweeping ===
-def sweep_servo():
-    while True:
-        for angle in range(60, 120, 2):
-            duty = angle / 18 + 2
-            servo.ChangeDutyCycle(duty)
-            time.sleep(0.05)
-        time.sleep(0.2)
-        for angle in range(120, 60, -2):
-            duty = angle / 18 + 2
-            servo.ChangeDutyCycle(duty)
-            time.sleep(0.05)
-        time.sleep(0.2)
-
-sweeper = threading.Thread(target=sweep_servo, daemon=True)
-sweeper.start()
 
 # === Movement Functions ===
 def move_forward(speed=30):
@@ -89,6 +71,33 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 time.sleep(2)
 
 reference_x = 320  # center of frame
+
+# === Servo scanning logic ===
+def scan_for_object():
+    print("Scanning for object...")
+    found = False
+    for angle in range(60, 121, 10):
+        duty = angle / 18 + 2
+        servo.ChangeDutyCycle(duty)
+        time.sleep(0.2)
+        ret, frame = cap.read()
+        if not ret:
+            continue
+        frame = cv2.flip(frame, -1)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        red_mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+        blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+        red_found = cv2.countNonZero(red_mask) > 800
+        blue_found = cv2.countNonZero(blue_mask) > 800
+        if red_found or blue_found:
+            print("Object detected during scan.")
+            found = True
+            break
+    servo.ChangeDutyCycle(0)
+    return found
 
 try:
     while True:
@@ -154,13 +163,14 @@ try:
                 time.sleep(1.0)
                 stop()
         else:
-            print("No object detected — stopping")
+            print("No object detected — scanning...")
             stop()
+            found = scan_for_object()
+            if not found:
+                print("Still no object after scanning.")
+                time.sleep(1)
 
         cv2.imshow("Camera", frame)
-        #cv2.imshow("Red Mask", red_mask)
-        #cv2.imshow("Blue Mask", blue_mask)
-
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
