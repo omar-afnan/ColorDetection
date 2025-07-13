@@ -158,8 +158,8 @@ try:
             stop()
 
         cv2.imshow("Camera", frame)
-        cv2.imshow("Red Mask", red_mask)
-        cv2.imshow("Blue Mask", blue_mask)
+        #cv2.imshow("Red Mask", red_mask)
+        #cv2.imshow("Blue Mask", blue_mask)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
