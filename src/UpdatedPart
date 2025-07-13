@@ -1,0 +1,88 @@
+#include <Servo.h>
+
+#define ENA 14
+#define IN1 27
+#define IN2 26
+#define IN3 25
+#define IN4 33
+#define ENB 32
+#define SERVO_PIN 13
+
+Servo camServo;
+
+// PWM channels
+#define PWM_CHANNEL_A 0
+#define PWM_CHANNEL_B 1
+#define PWM_FREQ 1000
+#define PWM_RESOLUTION 8
+
+void setup() {
+  Serial.begin(9600);
+  camServo.attach(SERVO_PIN);
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  // Setup PWM for motor enable pins
+  ledcSetup(PWM_CHANNEL_A, PWM_FREQ, PWM_RESOLUTION);
+  ledcSetup(PWM_CHANNEL_B, PWM_FREQ, PWM_RESOLUTION);
+  ledcAttachPin(ENA, PWM_CHANNEL_A);
+  ledcAttachPin(ENB, PWM_CHANNEL_B);
+  ledcWrite(PWM_CHANNEL_A, 255); // full speed
+  ledcWrite(PWM_CHANNEL_B, 255); // full speed
+}
+
+void loop() {
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+
+    if (cmd == "PUSH_RED") {
+      moveForward();
+      delay(1000);
+      stopMotors();
+    } else if (cmd == "PUSH_BLUE") {
+      moveForward();
+      delay(1000);
+      turnRight();
+      delay(500);
+      stopMotors();
+    } else if (cmd == "SCAN") {
+      scanArea();
+    }
+  }
+}
+
+void moveForward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void turnRight() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void stopMotors() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
+
+void scanArea() {
+  for (int pos = 60; pos <= 120; pos += 10) {
+    camServo.write(pos);
+    delay(200);
+  }
+  for (int pos = 120; pos >= 60; pos -= 10) {
+    camServo.write(pos);
+    delay(200);
+  }
+}
