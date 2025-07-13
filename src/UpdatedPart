@@ -17,6 +17,9 @@ void scanArea();
 
 void setup() {
   Serial.begin(9600);
+  while (!Serial);  // Optional: wait for serial to be ready
+
+  Serial.println("✅ ESP32 Booted and Ready");
   camServo.attach(SERVO_PIN);
 
   pinMode(IN1, OUTPUT);
