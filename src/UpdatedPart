@@ -1,5 +1,6 @@
 #include <Arduino.h>
-#include <Servo.h>
+#include <ESP32Servo.h>
+
 
 // === Pin Definitions ===
 #define ENA 14
