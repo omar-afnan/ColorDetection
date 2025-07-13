@@ -9,7 +9,7 @@
 
 Servo camServo;
 
-// ✅ Function Prototypes (required)
+// ✅ Function Prototypes
 void moveForward();
 void turnRight();
 void stopMotors();
@@ -17,15 +17,20 @@ void scanArea();
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);  // Optional: wait for serial to be ready
+  while (!Serial) {
+    delay(10); // Wait for serial port to be ready
+  }
 
   Serial.println("✅ ESP32 Booted and Ready");
+
   camServo.attach(SERVO_PIN);
 
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
   pinMode(IN4, OUTPUT);
+
+  stopMotors(); // Safety
 }
 
 void loop() {
@@ -33,20 +38,29 @@ void loop() {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
 
+    Serial.print("📥 Received: ");
+    Serial.println(cmd);
+
     if (cmd == "PUSH_RED") {
-  Serial.println("🚗 Executing PUSH_RED");
-  moveForward();
-  delay(1000);
-  stopMotors();
-} else if (cmd == "PUSH_BLUE") {
-      Serial.println("🚗 Executing PUSH_BLUE");
+      Serial.println("🚗 Executing PUSH_RED: Move Forward and Stop");
+      moveForward();
+      delay(1000);
+      stopMotors();
+    } 
+    else if (cmd == "PUSH_BLUE") {
+      Serial.println("🚗 Executing PUSH_BLUE: Move Forward, Turn Right, Stop");
       moveForward();
       delay(1000);
       turnRight();
       delay(500);
       stopMotors();
-    } else if (cmd == "SCAN") {
+    } 
+    else if (cmd == "SCAN") {
+      Serial.println("🔄 Executing SCAN: Sweeping servo");
       scanArea();
+    } 
+    else {
+      Serial.println("⚠️ Unknown command");
     }
   }
 }
