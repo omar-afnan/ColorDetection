@@ -1,0 +1,15 @@
+[Unit]
+Description=Auto-run Robot Script
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/omara/Desktop/main.py
+WorkingDirectory=/home/omara/Desktop
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=omara
+
+[Install]
+WantedBy=multi-user.target 
