@@ -1,5 +1,7 @@
+#include <Arduino.h>
 #include <Servo.h>
 
+// === Pin Definitions ===
 #define ENA 14
 #define IN1 27
 #define IN2 26
@@ -15,6 +17,12 @@ Servo camServo;
 #define PWM_CHANNEL_B 1
 #define PWM_FREQ 1000
 #define PWM_RESOLUTION 8
+
+// === Function Prototypes ===
+void moveForward();
+void turnRight();
+void stopMotors();
+void scanArea();
 
 void setup() {
   Serial.begin(9600);
