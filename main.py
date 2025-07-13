@@ -71,10 +71,15 @@ while True:
     mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, kernel)
     mask_blue = cv2.morphologyEx(mask_blue, cv2.MORPH_OPEN, kernel)
 
+    # === Red Object ===
     red_center, red_box = get_largest_contour_center_and_box(mask_red)
     if red_center and red_box:
         cx, cy = red_center
         x, y, w, h = red_box
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.putText(frame, f"RED ({cx},{cy})", (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
         for wx, wy, ww, wh in white_tiles:
             if wx < cx < wx + ww and wy < cy < wy + wh:
                 cv2.putText(frame, "Drop RED!", (cx + 20, cy + 40),
@@ -84,10 +89,15 @@ while True:
                 time.sleep(2)
                 break
 
+    # === Blue Object ===
     blue_center, blue_box = get_largest_contour_center_and_box(mask_blue)
     if blue_center and blue_box:
         cx, cy = blue_center
         x, y, w, h = blue_box
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        cv2.putText(frame, f"BLUE ({cx},{cy})", (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+
         for bx, by, bw, bh in black_tiles:
             if bx < cx < bx + bw and by < cy < by + bh:
                 cv2.putText(frame, "Drop BLUE!", (cx + 20, cy + 40),
@@ -97,7 +107,13 @@ while True:
                 time.sleep(2)
                 break
 
-    # Reference point
+    # === Draw tile boxes ===
+    for bx, by, bw, bh in black_tiles:
+        cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), (0, 0, 0), 2)
+    for wx, wy, ww, wh in white_tiles:
+        cv2.rectangle(frame, (wx, wy), (wx + ww, wy + wh), (255, 255, 255), 2)
+
+    # === Reference Point ===
     cv2.circle(frame, reference_point, 8, (0, 255, 0), -1)
     cv2.putText(frame, "Center", (reference_point[0] - 50, reference_point[1] - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
