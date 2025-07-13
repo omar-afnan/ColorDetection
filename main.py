@@ -7,24 +7,28 @@ import threading
 # === GPIO Setup ===
 GPIO.setmode(GPIO.BCM)
 
-# --- Motor Pins ---
-motor_pins = {
-    'left_fwd': 17,
-    'left_rev': 18,
-    'right_fwd': 22,
-    'right_rev': 23
-}
-for pin in motor_pins.values():
+# Motor control using PWM (GPIO 17, 18, 22, 23)
+motor_pins = [17, 18, 22, 23]
+for pin in motor_pins:
     GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, GPIO.LOW)
 
-# --- Servo Setup ---
+motor_pwms = {
+    'left_fwd': GPIO.PWM(17, 100),
+    'left_rev': GPIO.PWM(18, 100),
+    'right_fwd': GPIO.PWM(22, 100),
+    'right_rev': GPIO.PWM(23, 100)
+}
+
+for pwm in motor_pwms.values():
+    pwm.start(0)  # Start with 0% duty
+
+# Servo Setup
 SERVO_PIN = 12
 GPIO.setup(SERVO_PIN, GPIO.OUT)
-servo = GPIO.PWM(SERVO_PIN, 50)  # 50Hz
+servo = GPIO.PWM(SERVO_PIN, 50)
 servo.start(0)
 
-# === Servo sweeping thread ===
+# === Servo sweeping ===
 def sweep_servo():
     while True:
         for angle in range(60, 120, 2):
@@ -38,40 +42,39 @@ def sweep_servo():
             time.sleep(0.05)
         time.sleep(0.2)
 
-# Start sweeping
 sweeper = threading.Thread(target=sweep_servo, daemon=True)
 sweeper.start()
 
 # === Movement Functions ===
-def move_forward():
-    GPIO.output(motor_pins['left_fwd'], GPIO.HIGH)
-    GPIO.output(motor_pins['right_fwd'], GPIO.HIGH)
-    GPIO.output(motor_pins['left_rev'], GPIO.LOW)
-    GPIO.output(motor_pins['right_rev'], GPIO.LOW)
+def move_forward(speed=30):
+    motor_pwms['left_fwd'].ChangeDutyCycle(speed)
+    motor_pwms['right_fwd'].ChangeDutyCycle(speed)
+    motor_pwms['left_rev'].ChangeDutyCycle(0)
+    motor_pwms['right_rev'].ChangeDutyCycle(0)
 
-def move_backward():
-    GPIO.output(motor_pins['left_fwd'], GPIO.LOW)
-    GPIO.output(motor_pins['right_fwd'], GPIO.LOW)
-    GPIO.output(motor_pins['left_rev'], GPIO.HIGH)
-    GPIO.output(motor_pins['right_rev'], GPIO.HIGH)
+def move_backward(speed=30):
+    motor_pwms['left_fwd'].ChangeDutyCycle(0)
+    motor_pwms['right_fwd'].ChangeDutyCycle(0)
+    motor_pwms['left_rev'].ChangeDutyCycle(speed)
+    motor_pwms['right_rev'].ChangeDutyCycle(speed)
 
-def turn_left():
-    GPIO.output(motor_pins['left_fwd'], GPIO.LOW)
-    GPIO.output(motor_pins['right_fwd'], GPIO.HIGH)
-    GPIO.output(motor_pins['left_rev'], GPIO.LOW)
-    GPIO.output(motor_pins['right_rev'], GPIO.LOW)
+def turn_left(speed=30):
+    motor_pwms['left_fwd'].ChangeDutyCycle(0)
+    motor_pwms['right_fwd'].ChangeDutyCycle(speed)
+    motor_pwms['left_rev'].ChangeDutyCycle(0)
+    motor_pwms['right_rev'].ChangeDutyCycle(0)
 
-def turn_right():
-    GPIO.output(motor_pins['left_fwd'], GPIO.HIGH)
-    GPIO.output(motor_pins['right_fwd'], GPIO.LOW)
-    GPIO.output(motor_pins['left_rev'], GPIO.LOW)
-    GPIO.output(motor_pins['right_rev'], GPIO.LOW)
+def turn_right(speed=30):
+    motor_pwms['left_fwd'].ChangeDutyCycle(speed)
+    motor_pwms['right_fwd'].ChangeDutyCycle(0)
+    motor_pwms['left_rev'].ChangeDutyCycle(0)
+    motor_pwms['right_rev'].ChangeDutyCycle(0)
 
 def stop():
-    for pin in motor_pins.values():
-        GPIO.output(pin, GPIO.LOW)
+    for pwm in motor_pwms.values():
+        pwm.ChangeDutyCycle(0)
 
-# === Color Ranges (HSV) ===
+# === Color Detection Ranges ===
 lower_red1 = np.array([0, 120, 70])
 upper_red1 = np.array([10, 255, 255])
 lower_red2 = np.array([160, 120, 70])
@@ -85,7 +88,7 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 time.sleep(2)
 
-reference_x = 320  # screen center
+reference_x = 320  # center of frame
 
 try:
     while True:
@@ -96,15 +99,13 @@ try:
         frame = cv2.flip(frame, -1)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        # Red detection
-        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        red_mask = cv2.bitwise_or(mask1, mask2)
-
-        # Blue detection
+        # Create masks
+        red_mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
         blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-        # Morph filters
+        # Noise filtering
         kernel = np.ones((5, 5), np.uint8)
         red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
         red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_DILATE, kernel)
@@ -137,23 +138,23 @@ try:
                     cv2.circle(frame, (cx, cy), 5, (255, 0, 0), -1)
                     color_detected = 'blue'
 
-        # Movement Logic
+        # Movement logic
         if color_detected and cx:
             if cx < reference_x - 60:
                 print(f"{color_detected.capitalize()} left — turning left")
-                turn_left()
+                turn_left(speed=30)
             elif cx > reference_x + 60:
                 print(f"{color_detected.capitalize()} right — turning right")
-                turn_right()
+                turn_right(speed=30)
             else:
-                print(f"{color_detected.capitalize()} center — pushing block")
-                move_forward()
-                time.sleep(1.5)  # Push forward
-                move_backward()
-                time.sleep(1.0)  # Pull back
+                print(f"{color_detected.capitalize()} center — pushing forward")
+                move_forward(speed=30)
+                time.sleep(1.5)
+                move_backward(speed=30)
+                time.sleep(1.0)
                 stop()
         else:
-            print("No object — stop")
+            print("No object detected — stopping")
             stop()
 
         cv2.imshow("Camera", frame)
@@ -166,6 +167,8 @@ try:
 finally:
     print("Cleaning up...")
     stop()
+    for pwm in motor_pwms.values():
+        pwm.stop()
     servo.stop()
     GPIO.cleanup()
     cap.release()
