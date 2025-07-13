@@ -4,14 +4,13 @@ import numpy as np
 import time
 
 # ==== SERIAL SETUP ====
-# Uncomment if needed
 # esp_serial = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
 # time.sleep(2)
 
 # ==== HSV COLOR RANGES ====
-lower_red_1 = np.array([0, 150, 150])
+lower_red_1 = np.array([0, 100, 100])
 upper_red_1 = np.array([10, 255, 255])
-lower_red_2 = np.array([170, 150, 150])
+lower_red_2 = np.array([160, 100, 100])
 upper_red_2 = np.array([180, 255, 255])
 lower_blue = np.array([100, 150, 100])
 upper_blue = np.array([140, 255, 255])
@@ -20,7 +19,8 @@ upper_blue = np.array([140, 255, 255])
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-reference_point = (640, 360)
+ret, frame = cap.read()
+reference_point = (frame.shape[1] // 2, frame.shape[0] // 2)
 
 # ==== TILE DETECTION ====
 def detect_field_squares(frame):
@@ -76,13 +76,10 @@ while True:
     ret, frame = cap.read()
     if not ret:
         break
-    frame = cv2.flip(frame, 1)
     frame_count += 1
 
-    # Detect tiles
     black_tiles, white_tiles = detect_field_squares(frame)
 
-    # Create HSV masks
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     mask_red1 = cv2.inRange(hsv, lower_red_1, upper_red_1)
     mask_red2 = cv2.inRange(hsv, lower_red_2, upper_red_2)
@@ -92,6 +89,10 @@ while True:
     kernel = np.ones((5, 5), np.uint8)
     mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, kernel)
     mask_blue = cv2.morphologyEx(mask_blue, cv2.MORPH_OPEN, kernel)
+
+    # === DEBUG MASK WINDOWS ===
+    cv2.imshow("Red Mask", mask_red)
+    cv2.imshow("Blue Mask", mask_blue)
 
     # === RED detection ===
     red_center, red_box = get_largest_contour_center_and_box(mask_red)
@@ -110,7 +111,7 @@ while True:
                 cv2.putText(frame, "Drop RED!", (cx + 20, cy + 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                 print("📤 Command: DROP_RED")
-                # esp_serial.write(b"DROP_RED\n")  # Uncomment to send
+                # esp_serial.write(b"DROP_RED\n")
                 break
 
         if frame_count % 10 == 0:
@@ -133,13 +134,13 @@ while True:
                 cv2.putText(frame, "Drop BLUE!", (cx + 20, cy + 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                 print("📤 Command: DROP_BLUE")
-                # esp_serial.write(b"DROP_BLUE\n")  # Uncomment to send
+                # esp_serial.write(b"DROP_BLUE\n")
                 break
 
         if frame_count % 10 == 0:
             print(f"Blue Center: ({cx}, {cy}) | Offset: dx={dx}, dy={dy}")
 
-    # === Draw Reference Point ===
+    # === Reference + Labels ===
     cv2.circle(frame, reference_point, 8, (0, 255, 0), -1)
     cv2.putText(frame, "Center", (reference_point[0] - 50, reference_point[1] - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
