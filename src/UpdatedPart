@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <ESP32Servo.h>
 
-
 // === Pin Definitions ===
 #define ENA 14
 #define IN1 27
@@ -11,7 +10,7 @@
 #define ENB 32
 #define SERVO_PIN 13
 
-Servo camServo;
+ESP32Servo camServo;
 
 // PWM channels
 #define PWM_CHANNEL_A 0
