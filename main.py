@@ -6,6 +6,7 @@ import time
 # === SERIAL SETUP ===
 esp_serial = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
 time.sleep(2)
+print("✅ Connected to ESP32 via Serial")
 
 # === HSV COLOR RANGES ===
 lower_red_1 = np.array([0, 120, 70])
@@ -21,7 +22,7 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 reference_point = (640, 360)
-KNOWN_WIDTH = 3.9
+KNOWN_WIDTH = 3.9  # cm
 FOCAL_LENGTH = 625.33
 
 def get_largest_contour_center_and_box(mask):
@@ -53,6 +54,9 @@ def get_black_and_white_tiles(frame):
 
 # === MAIN LOOP ===
 frame_count = 0
+last_command = ""
+last_sent_time = time.time()
+
 try:
     while True:
         ret, frame = cap.read()
@@ -83,7 +87,7 @@ try:
                 cx, cy = center
                 x, y, w, h = box
 
-                # Draw
+                # Draw overlays
                 cv2.rectangle(frame, (x, y), (x + w, y + h), color_bgr, 2)
                 cv2.circle(frame, (cx, cy), 8, color_bgr, -1)
                 cv2.putText(frame, f"{color_name}: ({cx},{cy})", (x, y - 10),
@@ -93,16 +97,23 @@ try:
                     if tx < cx < tx + tw and ty < cy < ty + th:
                         cv2.putText(frame, f"Drop {color_name.upper()}!", (cx + 20, cy + 40),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                        if frame_count % 20 == 0:  # Throttle serial spam
-                            print(f"📤 Sending: {push_cmd}")
+
+                        # === Throttle duplicate commands (2 seconds gap) ===
+                        if push_cmd != last_command or (time.time() - last_sent_time > 2):
+                            print(f"📤 Sending to ESP: {push_cmd}")
                             esp_serial.write(f"{push_cmd}\n".encode())
+                            last_command = push_cmd
+                            last_sent_time = time.time()
                         break
 
+        # Draw reference center
         cv2.circle(frame, reference_point, 8, (0, 255, 0), -1)
         cv2.putText(frame, "Center", (reference_point[0] - 50, reference_point[1] - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        cv2.imshow("Detection", frame)
+        # Display
+        cv2.imshow("Color Cube Detection", frame)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
