@@ -1,18 +1,19 @@
 import cv2
 import numpy as np
-# import serial  # Uncomment if using serial
+# import serial
 import time
 
 # ==== SERIAL SETUP ====
 # esp_serial = serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
 # time.sleep(2)
 
-# ==== HSV COLOR RANGES ====
-lower_red_1 = np.array([0, 150, 150])
-upper_red_1 = np.array([10, 255, 255])
-lower_red_2 = np.array([170, 150, 150])
+# ==== HSV COLOR RANGES (widened red range) ====
+lower_red_1 = np.array([0, 100, 100])
+upper_red_1 = np.array([15, 255, 255])
+lower_red_2 = np.array([160, 100, 100])
 upper_red_2 = np.array([180, 255, 255])
-lower_blue = np.array([100, 150, 100])
+
+lower_blue = np.array([100, 150, 50])
 upper_blue = np.array([140, 255, 255])
 
 # ==== CAMERA SETUP ====
@@ -27,7 +28,7 @@ def get_largest_contour_center_and_box(mask):
     if not contours:
         return None, None
     largest = max(contours, key=cv2.contourArea)
-    if cv2.contourArea(largest) < 800:
+    if cv2.contourArea(largest) < 1000:
         return None, None
     M = cv2.moments(largest)
     if M["m00"] == 0:
@@ -40,14 +41,16 @@ def get_largest_contour_center_and_box(mask):
 # ==== TILE DETECTION ====
 def get_black_and_white_tiles(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    _, thresh_white = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY)
-    _, thresh_black = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    _, thresh_white = cv2.threshold(blur, 200, 255, cv2.THRESH_BINARY)
+    _, thresh_black = cv2.threshold(blur, 50, 255, cv2.THRESH_BINARY_INV)
 
     contours_white, _ = cv2.findContours(thresh_white, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours_black, _ = cv2.findContours(thresh_black, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    white_tiles = [cv2.boundingRect(cnt) for cnt in contours_white if 1000 < cv2.contourArea(cnt) < 50000]
-    black_tiles = [cv2.boundingRect(cnt) for cnt in contours_black if 1000 < cv2.contourArea(cnt) < 50000]
+    white_tiles = [cv2.boundingRect(cnt) for cnt in contours_white if 1000 < cv2.contourArea(cnt) < 40000]
+    black_tiles = [cv2.boundingRect(cnt) for cnt in contours_black if 1000 < cv2.contourArea(cnt) < 40000]
 
     return black_tiles, white_tiles
 
@@ -61,8 +64,8 @@ while True:
     frame_count += 1
 
     black_tiles, white_tiles = get_black_and_white_tiles(frame)
-
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
     mask_red1 = cv2.inRange(hsv, lower_red_1, upper_red_1)
     mask_red2 = cv2.inRange(hsv, lower_red_2, upper_red_2)
     mask_red = cv2.bitwise_or(mask_red1, mask_red2)
@@ -72,7 +75,7 @@ while True:
     mask_red = cv2.morphologyEx(mask_red, cv2.MORPH_OPEN, kernel)
     mask_blue = cv2.morphologyEx(mask_blue, cv2.MORPH_OPEN, kernel)
 
-    # === RED detection ===
+    # RED detection
     red_center, red_box = get_largest_contour_center_and_box(mask_red)
     if red_center and red_box:
         cx, cy = red_center
@@ -89,13 +92,13 @@ while True:
                 cv2.putText(frame, "Drop RED!", (cx + 20, cy + 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                 print("📤 Command: DROP_RED")
-                # esp_serial.write(b"DROP_RED\\n")
+                # esp_serial.write(b"DROP_RED\n")
                 break
 
         if frame_count % 10 == 0:
             print(f"Red Center: ({cx}, {cy}) | Offset: dx={dx}, dy={dy}")
 
-    # === BLUE detection ===
+    # BLUE detection
     blue_center, blue_box = get_largest_contour_center_and_box(mask_blue)
     if blue_center and blue_box:
         cx, cy = blue_center
@@ -112,13 +115,13 @@ while True:
                 cv2.putText(frame, "Drop BLUE!", (cx + 20, cy + 40),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                 print("📤 Command: DROP_BLUE")
-                # esp_serial.write(b"DROP_BLUE\\n")
+                # esp_serial.write(b"DROP_BLUE\n")
                 break
 
         if frame_count % 10 == 0:
             print(f"Blue Center: ({cx}, {cy}) | Offset: dx={dx}, dy={dy}")
 
-    # === Reference point marker ===
+    # Reference point
     cv2.circle(frame, reference_point, 8, (0, 255, 0), -1)
     cv2.putText(frame, "Center", (reference_point[0] - 50, reference_point[1] - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
@@ -127,7 +130,6 @@ while True:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# ==== CLEANUP ====
 cap.release()
 cv2.destroyAllWindows()
 # esp_serial.close()
