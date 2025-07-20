@@ -185,18 +185,13 @@ try:
             else:
                 print(f"{color_detected} cube CENTERED — pushing forward")
                 move_forward()
-                time.sleep(1.2)  # Push the cube
+                time.sleep(1.2)
                 stop()
 
-                print("Backing up to re-scan area")
+                print("Backing up slightly to re-scan area")
                 move_backward()
-                time.sleep(0.5)
+                time.sleep(0.3)  # reduced from 0.5 to 0.3
                 stop()
-
-                # Re-center servo
-                servo.ChangeDutyCycle(7.5)
-                time.sleep(0.5)
-                servo.ChangeDutyCycle(0)
 
                 print("Re-scanning after push")
                 if not scan_for_object():
@@ -217,3 +212,4 @@ finally:
     servo.stop()
     GPIO.cleanup()
     cap.release()
+ 
