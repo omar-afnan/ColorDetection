@@ -27,9 +27,12 @@ servo = GPIO.PWM(SERVO_PIN, 50)
 servo.start(0)
 
 # Center the servo at startup (90° = 7.5% duty)
-servo.ChangeDutyCycle(7.5)
-time.sleep(0.5)
-servo.ChangeDutyCycle(0)
+def center_servo():
+    servo.ChangeDutyCycle(7.5)
+    time.sleep(0.4)
+    servo.ChangeDutyCycle(0)
+
+center_servo()
 
 # === Movement Functions ===
 def stop():
@@ -38,12 +41,12 @@ def stop():
 
 def move_forward(speed=30):
     stop()
-    motor_pwms['left_fwd'].ChangeDutyCycle(speed)
+    motor_pwms['left_fwd'].ChangeDutyCycle(speed + 5)  # left motor boost to fix drift
     motor_pwms['right_fwd'].ChangeDutyCycle(speed)
 
 def move_backward(speed=30):
     stop()
-    motor_pwms['left_rev'].ChangeDutyCycle(speed)
+    motor_pwms['left_rev'].ChangeDutyCycle(speed + 5)
     motor_pwms['right_rev'].ChangeDutyCycle(speed)
 
 def turn_left(speed=30):
@@ -63,7 +66,7 @@ lower_blue = np.array([100, 150, 100])
 upper_blue = np.array([140, 255, 255])
 
 # === Camera Setup ===
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(0, cv2.CAP_V4L2)  # For Pi Cam
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -74,44 +77,9 @@ if not cap.isOpened():
     GPIO.cleanup()
     exit()
 
-reference_x = 160  # Center of 320px frame
+reference_x = 160  # Center of frame
 
-# === Scanning logic ===
-def scan_for_object():
-    print("Scanning for object...")
-    found = False
-    for angle in range(60, 121, 10):
-        duty = angle / 18 + 2
-        servo.ChangeDutyCycle(duty)
-        time.sleep(0.2)
-
-        cap.grab()
-        ret, frame = cap.retrieve()
-        if not ret or frame is None:
-            print("Failed to read frame during scan.")
-            continue
-
-        frame = cv2.flip(frame, -1)
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        red_mask = cv2.bitwise_or(
-            cv2.inRange(hsv, lower_red1, upper_red1),
-            cv2.inRange(hsv, lower_red2, upper_red2)
-        )
-        blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
-
-        if cv2.countNonZero(red_mask) > 800 or cv2.countNonZero(blue_mask) > 800:
-            print("Object detected.")
-            found = True
-            break
-
-    # Recenter servo after scanning
-    servo.ChangeDutyCycle(7.5)
-    time.sleep(0.5)
-    servo.ChangeDutyCycle(0)
-
-    return found
-
-# === Contour filter ===
+# === Contour Filter ===
 def find_valid_contour(mask):
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     valid = []
@@ -121,11 +89,54 @@ def find_valid_contour(mask):
             continue
         x, y, w, h = cv2.boundingRect(cnt)
         aspect_ratio = w / float(h)
-        if 0.75 < aspect_ratio < 1.25:  # nearly square
+        if 0.75 < aspect_ratio < 1.25:
             valid.append((cnt, area))
     if valid:
-        return max(valid, key=lambda tup: tup[1])[0]  # return the largest valid contour
+        return max(valid, key=lambda tup: tup[1])[0]
     return None
+
+# === Smart Scan with Servo ===
+def scan_for_object():
+    print("Scanning with servo...")
+    angles = list(range(60, 121, 10)) + list(range(110, 59, -10))  # Left to right, then back
+    for angle in angles:
+        duty = angle / 18 + 2
+        servo.ChangeDutyCycle(duty)
+        time.sleep(0.3)
+        servo.ChangeDutyCycle(0)
+
+        cap.grab()
+        ret, frame = cap.retrieve()
+        if not ret:
+            continue
+
+        frame = cv2.flip(frame, -1)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        red_mask = cv2.bitwise_or(
+            cv2.inRange(hsv, lower_red1, upper_red1),
+            cv2.inRange(hsv, lower_red2, upper_red2)
+        )
+        blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+
+        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+        blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+
+        red_contour = find_valid_contour(red_mask)
+        blue_contour = find_valid_contour(blue_mask)
+
+        if red_contour is not None:
+            print(f"Red object seen at servo angle {angle}")
+            center_servo()
+            return 'red', angle
+        elif blue_contour is not None:
+            print(f"Blue object seen at servo angle {angle}")
+            center_servo()
+            return 'blue', angle
+
+    print("Scan complete. No object found.")
+    center_servo()
+    return None, None
 
 # === Main Loop ===
 try:
@@ -133,8 +144,8 @@ try:
     while True:
         cap.grab()
         ret, frame = cap.retrieve()
-        if not ret or frame is None:
-            print("Failed to read camera frame.")
+        if not ret:
+            print("Camera error")
             continue
 
         frame = cv2.flip(frame, -1)
@@ -148,21 +159,17 @@ try:
 
         kernel = np.ones((5, 5), np.uint8)
         red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
-        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_DILATE, kernel)
         blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_OPEN, kernel)
-        blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_DILATE, kernel)
 
         color_detected = None
         cx = None
 
-        # Check for red cube
         red_contour = find_valid_contour(red_mask)
         if red_contour is not None:
             x, y, w, h = cv2.boundingRect(red_contour)
             cx = x + w // 2
             color_detected = 'red'
 
-        # Check for blue cube
         if color_detected is None:
             blue_contour = find_valid_contour(blue_mask)
             if blue_contour is not None:
@@ -170,39 +177,49 @@ try:
                 cx = x + w // 2
                 color_detected = 'blue'
 
-        # === Movement Logic ===
         if color_detected and cx:
             if cx < reference_x - 40:
                 print(f"{color_detected} cube on LEFT")
-                turn_left()
-                time.sleep(0.3)
+                turn_left(25)
+                time.sleep(0.25)
                 stop()
             elif cx > reference_x + 40:
                 print(f"{color_detected} cube on RIGHT")
-                turn_right()
-                time.sleep(0.3)
+                turn_right(25)
+                time.sleep(0.25)
                 stop()
             else:
                 print(f"{color_detected} cube CENTERED — pushing forward")
-                move_forward()
+                move_forward(40)
                 time.sleep(1.2)
                 stop()
 
-                print("Backing up slightly to re-scan area")
-                move_backward()
-                time.sleep(0.3)  # reduced from 0.5 to 0.3
+                print("Backing up slightly")
+                move_backward(35)
+                time.sleep(0.3)
                 stop()
 
-                print("Re-scanning after push")
-                if not scan_for_object():
-                    print("No new cube found after push.")
-
-        else:
-            print("No valid cube detected — scanning...")
-            stop()
-            if not scan_for_object():
-                print("Still nothing found after scanning.")
+                print("Rescanning...")
                 time.sleep(0.5)
+        else:
+            print("No object detected — servo scan time")
+            stop()
+            color, angle = scan_for_object()
+
+            if color:
+                if angle < 80:
+                    print("Turning slightly LEFT to face object")
+                    turn_left(25)
+                    time.sleep(0.25)
+                    stop()
+                elif angle > 100:
+                    print("Turning slightly RIGHT to face object")
+                    turn_right(25)
+                    time.sleep(0.25)
+                    stop()
+            else:
+                print("Nothing found. Pausing.")
+                time.sleep(1)
 
 finally:
     print("Shutting down...")
@@ -212,4 +229,3 @@ finally:
     servo.stop()
     GPIO.cleanup()
     cap.release()
- 
