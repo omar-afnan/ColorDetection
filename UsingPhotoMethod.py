@@ -80,7 +80,8 @@ def scan_for_object():
         servo.ChangeDutyCycle(duty)
         time.sleep(0.2)
 
-        ret, frame = cap.read()
+        cap.grab()
+        ret, frame = cap.retrieve()
         if not ret or frame is None:
             print("Failed to read frame during scan.")
             continue
@@ -104,7 +105,8 @@ def scan_for_object():
 # === Main Loop ===
 try:
     while True:
-        ret, frame = cap.read()
+        cap.grab()
+        ret, frame = cap.retrieve()
         if not ret or frame is None:
             print("Failed to read camera frame.")
             continue
@@ -151,26 +153,26 @@ try:
             if cx < reference_x - 40:
                 print(f"{color_detected} object on LEFT")
                 turn_left()
-                time.sleep(0.4)
+                time.sleep(0.3)
                 stop()
             elif cx > reference_x + 40:
                 print(f"{color_detected} object on RIGHT")
                 turn_right()
-                time.sleep(0.4)
+                time.sleep(0.3)
                 stop()
             else:
                 print(f"{color_detected} object CENTERED — moving forward")
                 move_forward()
-                time.sleep(1.0)
+                time.sleep(0.5)
                 move_backward()
-                time.sleep(0.8)
+                time.sleep(0.4)
                 stop()
         else:
             print("No object detected — scanning...")
             stop()
             if not scan_for_object():
                 print("Still nothing found after scanning.")
-                time.sleep(1)
+                time.sleep(0.5)
 
 finally:
     print("Shutting down...")
