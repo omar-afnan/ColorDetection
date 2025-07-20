@@ -111,8 +111,25 @@ def scan_for_object():
 
     return found
 
+# === Contour filter ===
+def find_valid_contour(mask):
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    valid = []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < 800:
+            continue
+        x, y, w, h = cv2.boundingRect(cnt)
+        aspect_ratio = w / float(h)
+        if 0.75 < aspect_ratio < 1.25:  # nearly square
+            valid.append((cnt, area))
+    if valid:
+        return max(valid, key=lambda tup: tup[1])[0]  # return the largest valid contour
+    return None
+
 # === Main Loop ===
 try:
+    print("Starting main loop")
     while True:
         cap.grab()
         ret, frame = cap.retrieve()
@@ -138,44 +155,55 @@ try:
         color_detected = None
         cx = None
 
-        # Check for red
-        contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if contours:
-            largest = max(contours, key=cv2.contourArea)
-            if cv2.contourArea(largest) > 800:
-                x, y, w, h = cv2.boundingRect(largest)
-                cx = x + w // 2
-                color_detected = 'red'
+        # Check for red cube
+        red_contour = find_valid_contour(red_mask)
+        if red_contour is not None:
+            x, y, w, h = cv2.boundingRect(red_contour)
+            cx = x + w // 2
+            color_detected = 'red'
 
-        # Check for blue
-        if not color_detected:
-            contours, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if contours:
-                largest = max(contours, key=cv2.contourArea)
-                if cv2.contourArea(largest) > 800:
-                    x, y, w, h = cv2.boundingRect(largest)
-                    cx = x + w // 2
-                    color_detected = 'blue'
+        # Check for blue cube
+        if color_detected is None:
+            blue_contour = find_valid_contour(blue_mask)
+            if blue_contour is not None:
+                x, y, w, h = cv2.boundingRect(blue_contour)
+                cx = x + w // 2
+                color_detected = 'blue'
 
         # === Movement Logic ===
         if color_detected and cx:
             if cx < reference_x - 40:
-                print(f"{color_detected} object on LEFT")
+                print(f"{color_detected} cube on LEFT")
                 turn_left()
                 time.sleep(0.3)
                 stop()
             elif cx > reference_x + 40:
-                print(f"{color_detected} object on RIGHT")
+                print(f"{color_detected} cube on RIGHT")
                 turn_right()
                 time.sleep(0.3)
                 stop()
             else:
-                print(f"{color_detected} object CENTERED — pushing forward")
+                print(f"{color_detected} cube CENTERED — pushing forward")
                 move_forward()
-                time.sleep(1.2)  # long enough to push box
+                time.sleep(1.2)  # Push the cube
                 stop()
+
+                print("Backing up to re-scan area")
+                move_backward()
+                time.sleep(0.5)
+                stop()
+
+                # Re-center servo
+                servo.ChangeDutyCycle(7.5)
+                time.sleep(0.5)
+                servo.ChangeDutyCycle(0)
+
+                print("Re-scanning after push")
+                if not scan_for_object():
+                    print("No new cube found after push.")
+
         else:
-            print("No object detected — scanning...")
+            print("No valid cube detected — scanning...")
             stop()
             if not scan_for_object():
                 print("Still nothing found after scanning.")
