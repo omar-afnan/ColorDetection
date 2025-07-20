@@ -26,6 +26,11 @@ GPIO.setup(SERVO_PIN, GPIO.OUT)
 servo = GPIO.PWM(SERVO_PIN, 50)
 servo.start(0)
 
+# Center the servo at startup (90° = 7.5% duty)
+servo.ChangeDutyCycle(7.5)
+time.sleep(0.5)
+servo.ChangeDutyCycle(0)
+
 # === Movement Functions ===
 def stop():
     for pwm in motor_pwms.values():
@@ -61,7 +66,7 @@ upper_blue = np.array([140, 255, 255])
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
-cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # smoother for USB webcams
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
 time.sleep(2)
 
 if not cap.isOpened():
@@ -99,7 +104,11 @@ def scan_for_object():
             found = True
             break
 
+    # Recenter servo after scanning
+    servo.ChangeDutyCycle(7.5)
+    time.sleep(0.5)
     servo.ChangeDutyCycle(0)
+
     return found
 
 # === Main Loop ===
@@ -161,11 +170,9 @@ try:
                 time.sleep(0.3)
                 stop()
             else:
-                print(f"{color_detected} object CENTERED — moving forward")
+                print(f"{color_detected} object CENTERED — pushing forward")
                 move_forward()
-                time.sleep(0.5)
-                move_backward()
-                time.sleep(0.4)
+                time.sleep(1.2)  # long enough to push box
                 stop()
         else:
             print("No object detected — scanning...")
