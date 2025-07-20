@@ -6,7 +6,6 @@ import time
 # === GPIO Setup ===
 GPIO.setmode(GPIO.BCM)
 
-# Motor control using PWM (GPIO 17, 18, 22, 23)
 motor_pins = [17, 18, 22, 23]
 for pin in motor_pins:
     GPIO.setup(pin, GPIO.OUT)
@@ -19,44 +18,38 @@ motor_pwms = {
 }
 
 for pwm in motor_pwms.values():
-    pwm.start(0)  # Start with 0% duty
+    pwm.start(0)
 
-# Servo Setup
+# Servo setup
 SERVO_PIN = 12
 GPIO.setup(SERVO_PIN, GPIO.OUT)
 servo = GPIO.PWM(SERVO_PIN, 50)
 servo.start(0)
 
 # === Movement Functions ===
-def move_forward(speed=30):
-    motor_pwms['left_fwd'].ChangeDutyCycle(speed)
-    motor_pwms['right_fwd'].ChangeDutyCycle(speed)
-    motor_pwms['left_rev'].ChangeDutyCycle(0)
-    motor_pwms['right_rev'].ChangeDutyCycle(0)
-
-def move_backward(speed=30):
-    motor_pwms['left_fwd'].ChangeDutyCycle(0)
-    motor_pwms['right_fwd'].ChangeDutyCycle(0)
-    motor_pwms['left_rev'].ChangeDutyCycle(speed)
-    motor_pwms['right_rev'].ChangeDutyCycle(speed)
-
-def turn_left(speed=30):
-    motor_pwms['left_fwd'].ChangeDutyCycle(0)
-    motor_pwms['right_fwd'].ChangeDutyCycle(speed)
-    motor_pwms['left_rev'].ChangeDutyCycle(0)
-    motor_pwms['right_rev'].ChangeDutyCycle(0)
-
-def turn_right(speed=30):
-    motor_pwms['left_fwd'].ChangeDutyCycle(speed)
-    motor_pwms['right_fwd'].ChangeDutyCycle(0)
-    motor_pwms['left_rev'].ChangeDutyCycle(0)
-    motor_pwms['right_rev'].ChangeDutyCycle(0)
-
 def stop():
     for pwm in motor_pwms.values():
         pwm.ChangeDutyCycle(0)
 
-# === Color Detection Ranges ===
+def move_forward(speed=30):
+    stop()
+    motor_pwms['left_fwd'].ChangeDutyCycle(speed)
+    motor_pwms['right_fwd'].ChangeDutyCycle(speed)
+
+def move_backward(speed=30):
+    stop()
+    motor_pwms['left_rev'].ChangeDutyCycle(speed)
+    motor_pwms['right_rev'].ChangeDutyCycle(speed)
+
+def turn_left(speed=30):
+    stop()
+    motor_pwms['right_fwd'].ChangeDutyCycle(speed)
+
+def turn_right(speed=30):
+    stop()
+    motor_pwms['left_fwd'].ChangeDutyCycle(speed)
+
+# === Color Detection HSV Ranges ===
 lower_red1 = np.array([0, 120, 70])
 upper_red1 = np.array([10, 255, 255])
 lower_red2 = np.array([160, 120, 70])
@@ -66,13 +59,19 @@ upper_blue = np.array([140, 255, 255])
 
 # === Camera Setup ===
 cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))  # smoother for USB webcams
 time.sleep(2)
 
-reference_x = 320  # center of frame
+if not cap.isOpened():
+    print("ERROR: Camera not detected.")
+    GPIO.cleanup()
+    exit()
 
-# === Servo scanning logic ===
+reference_x = 160  # Center of 320px frame
+
+# === Scanning logic ===
 def scan_for_object():
     print("Scanning for object...")
     found = False
@@ -80,61 +79,64 @@ def scan_for_object():
         duty = angle / 18 + 2
         servo.ChangeDutyCycle(duty)
         time.sleep(0.2)
+
         ret, frame = cap.read()
-        if not ret:
+        if not ret or frame is None:
+            print("Failed to read frame during scan.")
             continue
+
         frame = cv2.flip(frame, -1)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        red_mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+        red_mask = cv2.bitwise_or(
+            cv2.inRange(hsv, lower_red1, upper_red1),
+            cv2.inRange(hsv, lower_red2, upper_red2)
+        )
         blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-        red_found = cv2.countNonZero(red_mask) > 800
-        blue_found = cv2.countNonZero(blue_mask) > 800
-        if red_found or blue_found:
-            print("Object detected during scan.")
+        if cv2.countNonZero(red_mask) > 800 or cv2.countNonZero(blue_mask) > 800:
+            print("Object detected.")
             found = True
             break
+
     servo.ChangeDutyCycle(0)
     return found
 
+# === Main Loop ===
 try:
     while True:
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret or frame is None:
+            print("Failed to read camera frame.")
+            continue
 
         frame = cv2.flip(frame, -1)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        # Create masks
-        red_mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+        red_mask = cv2.bitwise_or(
+            cv2.inRange(hsv, lower_red1, upper_red1),
+            cv2.inRange(hsv, lower_red2, upper_red2)
+        )
         blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-        # Noise filtering
         kernel = np.ones((5, 5), np.uint8)
         red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
         red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_DILATE, kernel)
         blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_OPEN, kernel)
         blue_mask = cv2.morphologyEx(blue_mask, cv2.MORPH_DILATE, kernel)
 
-        contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         color_detected = None
         cx = None
 
+        # Check for red
+        contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             largest = max(contours, key=cv2.contourArea)
             if cv2.contourArea(largest) > 800:
                 x, y, w, h = cv2.boundingRect(largest)
                 cx = x + w // 2
-                cy = y + h // 2
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
                 color_detected = 'red'
 
+        # Check for blue
         if not color_detected:
             contours, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if contours:
@@ -142,44 +144,39 @@ try:
                 if cv2.contourArea(largest) > 800:
                     x, y, w, h = cv2.boundingRect(largest)
                     cx = x + w // 2
-                    cy = y + h // 2
-                    cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-                    cv2.circle(frame, (cx, cy), 5, (255, 0, 0), -1)
                     color_detected = 'blue'
 
-        # Movement logic
+        # === Movement Logic ===
         if color_detected and cx:
-            if cx < reference_x - 60:
-                print(f"{color_detected.capitalize()} left — turning left")
-                turn_left(speed=30)
-            elif cx > reference_x + 60:
-                print(f"{color_detected.capitalize()} right — turning right")
-                turn_right(speed=30)
+            if cx < reference_x - 40:
+                print(f"{color_detected} object on LEFT")
+                turn_left()
+                time.sleep(0.4)
+                stop()
+            elif cx > reference_x + 40:
+                print(f"{color_detected} object on RIGHT")
+                turn_right()
+                time.sleep(0.4)
+                stop()
             else:
-                print(f"{color_detected.capitalize()} center — pushing forward")
-                move_forward(speed=30)
-                time.sleep(1.5)
-                move_backward(speed=30)
+                print(f"{color_detected} object CENTERED — moving forward")
+                move_forward()
                 time.sleep(1.0)
+                move_backward()
+                time.sleep(0.8)
                 stop()
         else:
             print("No object detected — scanning...")
             stop()
-            found = scan_for_object()
-            if not found:
-                print("Still no object after scanning.")
+            if not scan_for_object():
+                print("Still nothing found after scanning.")
                 time.sleep(1)
 
-        cv2.imshow("Camera", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
 finally:
-    print("Cleaning up...")
+    print("Shutting down...")
     stop()
     for pwm in motor_pwms.values():
         pwm.stop()
     servo.stop()
     GPIO.cleanup()
     cap.release()
-    cv2.destroyAllWindows()  this was the code sorry we were doing headless  and make it the changes u made it there and make it here pls  
