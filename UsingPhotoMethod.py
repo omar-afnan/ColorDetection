@@ -26,7 +26,6 @@ GPIO.setup(SERVO_PIN, GPIO.OUT)
 servo = GPIO.PWM(SERVO_PIN, 50)
 servo.start(0)
 
-# Center the servo at startup (90° = 7.5% duty)
 def center_servo():
     servo.ChangeDutyCycle(7.5)
     time.sleep(0.4)
@@ -41,7 +40,7 @@ def stop():
 
 def move_forward(speed=30):
     stop()
-    motor_pwms['left_fwd'].ChangeDutyCycle(speed + 5)  # left motor boost to fix drift
+    motor_pwms['left_fwd'].ChangeDutyCycle(speed + 5)  # compensate left drift
     motor_pwms['right_fwd'].ChangeDutyCycle(speed)
 
 def move_backward(speed=30):
@@ -57,7 +56,7 @@ def turn_right(speed=30):
     stop()
     motor_pwms['left_fwd'].ChangeDutyCycle(speed)
 
-# === Color Detection HSV Ranges ===
+# === HSV Ranges for Color Detection ===
 lower_red1 = np.array([0, 120, 70])
 upper_red1 = np.array([10, 255, 255])
 lower_red2 = np.array([160, 120, 70])
@@ -66,7 +65,7 @@ lower_blue = np.array([100, 150, 100])
 upper_blue = np.array([140, 255, 255])
 
 # === Camera Setup ===
-cap = cv2.VideoCapture(0, cv2.CAP_V4L2)  # For Pi Cam
+cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -95,10 +94,10 @@ def find_valid_contour(mask):
         return max(valid, key=lambda tup: tup[1])[0]
     return None
 
-# === Smart Scan with Servo ===
+# === Servo-Based Scanning ===
 def scan_for_object():
     print("Scanning with servo...")
-    angles = list(range(60, 121, 10)) + list(range(110, 59, -10))  # Left to right, then back
+    angles = list(range(60, 121, 10)) + list(range(110, 59, -10))  # sweep L→R→L
     for angle in angles:
         duty = angle / 18 + 2
         servo.ChangeDutyCycle(duty)
@@ -189,20 +188,22 @@ try:
                 time.sleep(0.25)
                 stop()
             else:
-                print(f"{color_detected} cube CENTERED — pushing forward")
-                move_forward(40)
-                time.sleep(1.2)
-                stop()
+                print(f"{color_detected} cube CENTERED — approaching slowly")
+                for _ in range(3):
+                    move_forward(40)
+                    time.sleep(0.3)
+                    stop()
+                    time.sleep(0.2)
 
-                print("Backing up slightly")
+                print("Backing up slightly to re-scan area")
                 move_backward(35)
-                time.sleep(0.3)
+                time.sleep(0.4)
                 stop()
 
                 print("Rescanning...")
                 time.sleep(0.5)
         else:
-            print("No object detected — servo scan time")
+            print("No object detected — scanning...")
             stop()
             color, angle = scan_for_object()
 
@@ -218,7 +219,7 @@ try:
                     time.sleep(0.25)
                     stop()
             else:
-                print("Nothing found. Pausing.")
+                print("Nothing found. Waiting.")
                 time.sleep(1)
 
 finally:
