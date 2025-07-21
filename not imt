@@ -1,1 +1,1 @@
-sudo killall libcamera-still libcamera-vid libcamera-hello libcamera-preview python3
+changes were only made in the using photoMethod and on the pi file is name as (name.py) 
